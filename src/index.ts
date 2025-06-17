@@ -9,6 +9,7 @@ import { sha256, createToken } from "./crypto.ts";
 import { User, Session, Group } from "./types.ts"; // Assuming you have a types file for User type
 
 import WebSocket, { WebSocketServer } from "ws";
+import { create } from "domain";
 
 const db = new Database("db.db");
 setupdb(db);
@@ -219,13 +220,17 @@ websocketServer.on("connection", (ws) => {
                      WHERE ug.user_id = ?`,
                     [userid]
                 );
+                const userLessons = await dball(`SELECT l.id, l.group_id, l.title, l.content, l.publish_date, l.created_at FROM lessons l
+                     JOIN user_groups ug ON l.group_id = ug.group_id
+                     WHERE ug.user_id = ?`,
+                    [userid]
+                );
                 // Send the groups to the client
-                ws.send(JSON.stringify({ opcode: "info_ack", success: true, username: username, groups: userGroups,  channels: userChannels }));
+                ws.send(JSON.stringify({ opcode: "info_ack", success: true, username: username, lessons: userLessons, groups: userGroups,  channels: userChannels }));
                 break;
             case "message":
                 let content = parsedMessage.content;
                 let channel_id = parsedMessage.channel_id;
-                console.log(!content, !channel_id);
                 if (!content || !channel_id) {
                     ws.send(JSON.stringify({ opcode: "message_ack", success: false, error: "Missing content or channel_id" }));
                     return;
@@ -243,13 +248,14 @@ websocketServer.on("connection", (ws) => {
                 ws.send(JSON.stringify({ opcode: "message_ack", success: true }));
                 // Optionally, you can broadcast the message to other connected clients
                 websocketServer.clients.forEach((client) => {
-                    if (client.readyState === WebSocket.OPEN && client !== ws) {
+                    if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             opcode: "new_message",
                             userId: userid,
                             channelId: channel_id,
                             content: content,
-                            timestamp: new Date().toISOString()
+                            username: username,
+                            created_at: new Date().toISOString()
                         }));
                     }
                 });
@@ -269,7 +275,7 @@ websocketServer.on("connection", (ws) => {
                     `SELECT m.id, m.content, m.created_at, u.username FROM messages m
                      JOIN users u ON m.user_id = u.id
                      WHERE m.channel_id = ?
-                     ORDER BY m.created_at DESC LIMIT 10`,
+                     ORDER BY m.created_at DESC LIMIT 100`,
                     [channelId]
                 );
                 // Send the messages to the client
@@ -346,13 +352,45 @@ async function createChannel(name: string, groupId: number) {
     // return channel.id;
 }
 
-// async function createLesson(title: string, content: string, channelId: number, authorId: number, publishDate: Date) {
-
+async function createLesson(title: string, content: string, groupId: number, authorId: number) {
+    if (!title || typeof title !== "string" || !content || typeof content !== "string") {
+        throw new Error("Invalid lesson title or content");
+    }
+    // Insert the lesson into the database
+    await dbrun(
+        `INSERT INTO lessons (title, content, group_id, created_at, publish_date, author_id) VALUES (?, ?, ?, datetime('now'), datetime('now'), ?)`,
+        [title, content, groupId, authorId]
+    );
+}
 // }
 // setTimeout(() => {
 //     createGroup("grupa1", 1);
 //     createChannel("offtop", 1);
 // }, 1000);
+createLesson("Lesson 2", "This is the content of lesson 2", 2, 1);
+
+// createChannel("off", 1);
+
+async function addUserToGroup(userId: number, groupId: number, permissions: number) {
+    if (!userId || !groupId || typeof permissions !== "number") {
+        throw new Error("Invalid user ID, group ID, or permissions");
+    }
+    // Check if the user is already in the group
+    const existingUserGroup = await dbget(
+        `SELECT * FROM user_groups WHERE user_id = ? AND group_id = ?`,
+        [userId, groupId]
+    );
+    if (existingUserGroup) {
+        throw new Error("User is already in this group");
+    }
+    // Insert the user into the group with specified permissions
+    await dbrun(
+        `INSERT INTO user_groups (user_id, group_id, permissions, joined_at) VALUES (?, ?, ?, datetime('now'))`,
+        [userId, groupId, permissions]
+    );
+}
+
+// addUserToGroup(3, 1, 0);
 
 const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
