@@ -80,6 +80,7 @@ export async function setupdb(db: Database) {
         id integer primary key,
         title varchar(100) not null,
         content text,
+        channel_id int not null,
         created_at timestamp,
         publish_date timestamp,
         author_id int not null

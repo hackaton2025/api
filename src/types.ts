@@ -40,6 +40,7 @@ export type Lesson = {
   id: number;
   title: string;
   content: string;
+  channel_id: number;
   created_at: Date; // timestamp
   publish_date: Date; // timestamp
   author_id: number;
