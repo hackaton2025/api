@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "outDir": "./dist", // Specify the output folder for compiled JavaScript
+        "allowJs": true,
+        "moduleResolution": "Node",
+        "strict": true,
+        "allowSyntheticDefaultImports": true,
+        "skipLibCheck": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "esModuleInterop": true
+    },
+    "include": ["./src/**/*.ts"] // Specify the path to your TypeScript files
+}
